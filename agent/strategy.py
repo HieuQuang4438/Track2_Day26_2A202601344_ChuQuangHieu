@@ -4,7 +4,7 @@ authorize / budget — the four JOBS a decision must do), this file is the
 building blocks a real answer to those jobs is made of. Nothing here is
 wired into `Gateway.decide` by default — see agent/gateway.py's own module
 docstring and agent/README.md's table for where each piece is meant to
-plug in. That wiring is the assignment, not a step you're missing.
+plug in; `gateway.py`'s four jobs wire them in there, not here.
 
 THE ARITHMETIC THAT MAKES THIS FILE'S EXISTENCE THE LESSON
 ----------------------------------------------------------------------------
@@ -19,10 +19,11 @@ silently drift from the real cost table):
                  slides.get_frame(default fields)     base2 + (body2+title0)          =  4
                  registry.provenance(default fields)  base1 + (etag0)                 =  1
                  -------------------------------------------------------
-                 = 11 credits this round — the CEILING of FINAL-PLAN.md 4.3's
-                   "8-11" (a round that skips the provenance re-read, or
-                   reuses a cached body via `ResultCache` below, lands
-                   nearer the floor of that range instead).
+                 = the CEILING of FINAL-PLAN.md 4.3's "8-11". The prose here
+                   originally said 11; the live `kit/mcp/specs.py` table now
+                   prices this combination at 9. Trust
+                   `disciplined_round_cost()` over any number written down in
+                   this docstring — it recomputes, prose does not.
 
     CARELESS     registry.list_servers(fields=[*])    ->            12
                  glossary.list_terms()  (default==full "punishment
@@ -32,13 +33,12 @@ silently drift from the real cost table):
                  = 49 credits — MORE THAN ONE THIRD OF THE WHOLE DUEL'S
                    BUDGET, spent in a single round.
 
-Play at the DISCIPLINED CEILING (11 cr) every single round and 10 rounds
-costs 110 — a hair OVER the 100-credit pool: this file's own `__main__`
-demo shows that combination surviving nine full rounds and only running dry
-paying for the tenth. That is not a bug in the arithmetic; it is the honest
-point — "disciplined" is not a magic number, it is not re-paying for the
-same provenance read or the same frame body every round when you already
-have it (`ResultCache` below, and `BudgetPacer.is_affordable`'s reserve
+Play at the DISCIPLINED CEILING every single round and 10 rounds fit inside
+the 100-credit pool with a thin margin — this file's own `__main__` demo
+computes the exact figures live rather than quoting them. The margin is thin
+on purpose, and that is the honest point — "disciplined" is not a magic
+number, it is not re-paying for the same provenance read or the same frame
+body every round when you already have it (`ResultCache` below, and `BudgetPacer.is_affordable`'s reserve
 floor). Play CARELESS even once and you are mathematically bankrupt by
 round 3 (100 − 49 − 49 < 0) — not because the game is rigged against you,
 but because `registry.list_servers` and `glossary.list_terms` were
@@ -404,13 +404,23 @@ if __name__ == "__main__":
         f"  disciplined (ceiling, {disciplined}cr) x10 rounds -> spent={disciplined_pacer.credits_spent} "
         f"credits_left={disciplined_pacer.credits_left} bankrupt_by={disciplined_pacer.bankrupt_by()}"
     )
-    # Even the CEILING of "disciplined" (paying full price for query + get_frame
-    # + provenance, EVERY round, with no caching at all) survives nine full
-    # rounds and only runs dry paying for the tenth -- a sharp contrast with
-    # careless play below, and the honest reason ResultCache/pacing exist:
-    # not needing all three calls every round is what buys the margin
-    # FINAL-PLAN.md 4.3 calls "sustainable".
-    assert disciplined_pacer.bankrupt_by() == ROUNDS_PER_DUEL, disciplined_pacer.bankrupt_by()
+    # THIS ASSERTION WAS WRONG AS SHIPPED and is fixed here. It read
+    # `assert disciplined_pacer.bankrupt_by() == ROUNDS_PER_DUEL`, which only
+    # holds if the disciplined round costs 11 -- the number the module docstring
+    # above quotes. The live table in `kit/mcp/specs.py` prices it at 9, so ten
+    # rounds cost 90 against a 100 pool, `bankrupt_by()` returns None, and
+    # `python -m agent.strategy` exited 1 on an untouched checkout.
+    #
+    # That is exactly the drift `disciplined_round_cost` was written to avoid:
+    # the FUNCTION recomputes against the real table, but this demo and the
+    # docstring hard-coded the old answer next to it. The fix is to assert the
+    # PROPERTY -- ten disciplined rounds are affordable, one careless round is
+    # not -- instead of a specific credit total that a retune invalidates.
+    assert disciplined_pacer.credits_left >= 0, (
+        f"ten disciplined rounds at {disciplined} cr must fit the 100-credit pool, "
+        f"got credits_left={disciplined_pacer.credits_left}"
+    )
+    assert disciplined_pacer.bankrupt_by() is None, disciplined_pacer.bankrupt_by()
     nine_rounds_pacer = BudgetPacer()
     for round_no in range(1, ROUNDS_PER_DUEL):  # 9 rounds, not 10
         nine_rounds_pacer.record_spend(round_no, disciplined)

@@ -6,9 +6,9 @@ classes (CONTRACTS.md section 6.1) each one can save you from.
     gateway.py      the control plane: Gateway.decide(cmd) -> Decision
                      (CONTRACTS.md section 4, exactly)
     strategy.py      discovery / delegation / caching / replica / budget
-                     policy — building blocks, not wired in by default
-    guardrails.py    grounding (real), injection/redaction/arithmetic
-                     (named stubs), abstention (real, naive)
+                     policy — the building blocks gateway.py's four jobs use
+    guardrails.py    grounding, injection scan, redaction, arithmetic
+                     verification, abstention (real, naive)
     telemetry.py     ctx.emit wrappers — your own side only, never scored
     prompt.md        the system prompt LAYERED ON TOP of kit.loop.prompt's
                      harness prompt (not a replacement for it)

@@ -11,7 +11,7 @@
 3. Prosecutor - 16 detector còn thiếu
 4. Deck - trigger, lineup, sửa 1 card hỏng
 5. Số đo + 2 bug tự tìm ra
-6. Cái chưa xong: world thật
+6. World + submit
 
 ### 3 task 1 trận - liên hệ với nhau thế nào
 
@@ -147,7 +147,26 @@ K có gate này thì mất 36 HP trong 10 vòng.
     - 5 card gateway mạnh chặn đc -> vòng đầu (x1.0)
     - 5 card xuyên đc gateway mạnh -> vòng cuối (x1.5)
 
-**K đụng** anchor, `path_id`, `note_anchor`, `term`. K có world thật thì k kiểm chức đc giá trị mới, mà giá trị cũ là giá trị đã ship.
+### Đổi path_id sau khi có world thật
+
+Lúc chưa có world thì k đụng `path_id` vì k kiểm chức đc. Có world rồi thì mở `kit/world/df8c55dabb35/drift.json` ra xem: **16/22 path_id có drift thật**.
+
+Phát hiện: `atk_03` của deck starter nhắm vào `053195a5` - cờ `drifts` bật nhưng **delta = 0**, content frame `w=79 c=79`, hai bản y hệt nhau.
+
+> `validate_deck.py` chỉ check `world.drifts(path_id)` - cái cờ boolean - chứ k check `delta`. Nên card này PASS validate mà vẫn gần như k tìm thấy gì. Validate là sàn, k phải trần.
+
+Tệ hơn: `ask` của `atk_03` require field `delta`. Với `053195a5` thì đáp án đúng là 0 - k có gì để trả sai. Card k đo đc cái nó định đo.
+
+Đổi:
+
+- `atk_02` (replica_flip, scope=header): `e0614beb` delta 25 -> `7a8d8046` delta **60**, content `w=81 c=21`. Biên độ drift lớn nhất toàn corpus
+- `atk_03` (drift, scope=content): `053195a5` delta 0 -> `0e11ae43` delta **34**, content `w=45 c=11`
+
+Cả 2 đều resolve `Frame:<id>/w/001` và `/c/001`, validate lại vẫn PASS 0 lỗi.
+
+> Nhưng **spar k đo đc cải thiện này**. `spar._exchange` k đọc `drift.json` - nó chỉ set `args["route"]="c"` rồi coi mutation đã applied. Ladder và spar ra số y hệt trước và sau khi đổi. Chỉ arena thật, nơi mutation engine thực sự đọc world, mới thấy khác biệt.
+
+**Vẫn k đụng** anchor, `note_anchor`, `term` - mấy cái đó resolve rồi, đổi chỉ để cho khác thì là churn k có lý do đo đc.
 
 ## Số đo
 
@@ -216,34 +235,68 @@ Test `test_starter_end_to_end_against_the_full_fixture_set` khẳng định `0.0
 
 Nếu giảng viên bắt giữ nguyên `tests/`: `git checkout tests/test_prosecute.py`, khi đó `make test` đỏ đúng 1 test và phần giải thích chính là đoạn trên.
 
-## Cái chưa xong: world thật
+## World + submit
 
-`kit/world/` chỉ có code, **k có data**. World ~12 MB nằm ở Releases, cần `gh`, mà `gh` chưa cài trên máy.
+### World k nằm ở repo của mình
 
-Để chạy đc spar/validate trong lúc dev, dựng world tổng hợp bằng chính hàm có sẵn trong kit:
+`kit/world/` ship ra chỉ có code, k có data. README bảo `gh release download` trên repo của mình - **k chạy đc, và k phải vì thiếu `gh`**.
 
-```powershell
-& $PY -c "from kit.world.fixture import build_fixture_world; build_fixture_world('kit/world/fixture-v1', include_truth=False)"
+Repo này là **fork** của `VinUni-AI20k/Day26-Colosseum-Agent-Arena-Kit`. Fork k copy release. Kiểm qua API:
+
+```
+repo cua minh:  0 tag, 0 release, private: False
+repo cha:       1 release - tag world-df8c55dabb35, 2 asset
 ```
 
-World này **160 page** so với **12375 page** của world thật, nên mọi anchor thật đều k resolve. Đó chính là 15 lỗi giả mà `Makefile` cảnh báo sẵn.
+> README còn ghi "dùng `gh` vì repo đang private". Repo này **public**. Cài `gh` rồi `gh auth login` cũng k giải quyết đc gì - vấn đề là tải nhầm chỗ, k phải thiếu quyền.
 
-**Bằng chứng deck của mình k làm hỏng thêm gì:** chạy `validate_deck.py` trên deck gốc (`git show HEAD:deck/deck.json`) và deck đã sửa, cùng 1 world tổng hợp -> danh sách FAIL **giống hệt nhau, 16 = 16, diff rỗng**.
-
-Việc cần làm tiếp, đúng thứ tự:
+Vì cả 2 repo đều public nên tải thẳng, k cần `gh`, k cần auth:
 
 ```powershell
-winget install --id GitHub.cli -e     # mở PowerShell mới sau khi cài
-gh auth login
-gh release download world-df8c55dabb35 --pattern '*.zip'
-Expand-Archive .\colosseum-world-df8c55dabb35.zip -DestinationPath .\kit\world\
-Remove-Item -Recurse -Force .\kit\world\fixture-v1    # xoá world tổng hợp
-$W = (Get-ChildItem kit\world\*\manifest.json | Select-Object -First 1).Directory.FullName
-& $PY validate_deck.py deck\deck.json deck\lineup.json --world $W
-& $PY -m kit.submit --team 2A202601344-chu-quang-hieu
+$base = "https://github.com/VinUni-AI20k/Day26-Colosseum-Agent-Arena-Kit/releases/download/world-df8c55dabb35"
+Invoke-WebRequest "$base/colosseum-world-df8c55dabb35.zip"        -OutFile "$env:TEMP\world.zip"
+Invoke-WebRequest "$base/colosseum-world-df8c55dabb35.zip.sha256" -OutFile "$env:TEMP\world.sha256"
+(Get-FileHash "$env:TEMP\world.zip" -Algorithm SHA256).Hash      # so voi file .sha256
 ```
 
-Nếu `R5-replica-flip-drift-set` vẫn báo lỗi trên world thật thì phải đổi `path_id` của `atk_02` / `atk_03` sang `path_id` có trong `drift.json`.
+sha256 khớp: `e05327c0bd88b2b1ee9c9194a4bee5535964360d97d462144773d02686705810`
+
+### Giải nén vào GỐC REPO, k phải vào kit\world\
+
+Zip đã chứa sẵn đường dẫn `kit/world/df8c55dabb35/`. Làm theo README (`-DestinationPath .\kit\world\`) sẽ ra `kit/world/kit/world/df8c55dabb35` - đúng cái lỗi "lồng dư một cấp" mà chính README cảnh báo.
+
+```powershell
+Expand-Archive "$env:TEMP\world.zip" -DestinationPath . -Force
+```
+
+Kết quả: `world df8c55dabb35 - 24750 pages`, k có `truth.json` - đúng bản sinh viên.
+
+> World tổng hợp `fixture-v1` mình dựng lúc dev có 160 page. World thật 24750. Chênh 150 lần - đó là lý do 16 lỗi validate lúc trước đều là lỗi giả.
+
+### Validate + submit
+
+Deck chạy trên world thật lần đầu:
+
+```
+PASS: 0 failing check(s), 5 warning(s).
+```
+
+**0 lỗi.** 16 lỗi trước đó đều do world giả, đúng như đã dự đoán ở phần Deck. 5 warning còn lại là `R8-held-in-principle` - proxy k confirm đc mấy card có `defense_event` khác `gateway.denied`, và mục Gate `defense_event` phía trên giải thích vì sao mấy card đó forward mới là đúng.
+
+Deck của cả 3 bot cũng PASS 0 lỗi 5 warning - cùng shape, xác nhận warning là tính chất của proxy chứ k phải lỗi deck.
+
+```
+wrote submissions\2A202601344-chu-quang-hieu.bundle  (91,789 bytes, 13 files)
+kit/ hashes recorded: 39 files
+```
+
+Bundle gồm: `MANIFEST.json` + 7 file `agent/` + 3 file `deck/` + 3 file `eval/`.
+
+### Đo lại trên world thật
+
+Ladder và spar ra **số y hệt** lúc chạy world tổng hợp. Lý do: `spar._exchange` dùng tool plan cố định và detector đọc trace, k đọc world. World chỉ ảnh hưởng `validate_deck.py`.
+
+> Nghĩa là mọi số đo ở phần trên vẫn đúng. Nhưng cũng nghĩa là spar **k** test đc phần world-dependent của deck - cái đó chỉ arena thật mới đo.
 
 ## Tự kiểm tra
 
@@ -260,4 +313,7 @@ Nếu `R5-replica-flip-drift-set` vẫn báo lỗi trên world thật thì phả
     > Chưa. 8 lớp gate-2 `spar.py` k chấm (đẩy vào `pending`), arena thật dùng model để adjudicate. Fixture chỉ có 2 mẫu mỗi lớp - đúng hết 2/2 k nói lên nhiều về phân phối thật.
 
 - Deck đã thật sự là deck của mình chưa?
-    > Chưa hẳn. Đổi đc trigger, lineup, 1 mutation value - nhưng anchor và `path_id` vẫn là của deck starter vì k có world để kiểm chứng giá trị mới. Sau khi tải world nên chọn `path_id` riêng từ `drift.json`.
+    > Gần rồi. Đổi trigger, lineup, 1 mutation value, 2 path_id. Còn lại anchor / `note_anchor` / `term` vẫn của starter - mấy cái đó resolve đúng nên đổi chỉ để khác là churn. Điểm yếu thật: cải thiện path_id **k verify đc bằng spar**, phải tin vào `drift.json` và lập luận.
+
+- Validate PASS 0 lỗi thì deck ổn chưa?
+    > Chưa chắc. `atk_03` cũ PASS validate với delta=0 - card gần như vô dụng mà vẫn hợp lệ. Validate check cờ `drifts`, k check biên độ. Phải tự mở `drift.json` đọc `delta` mới biết card có đo đc cái gì k.

@@ -153,7 +153,7 @@ def check_grounding(
 
 
 # ---------------------------------------------------------------------------
-# 2. INJECTED-INSTRUCTION REFUSAL — STUB.
+# 2. INJECTED-INSTRUCTION REFUSAL.
 # ---------------------------------------------------------------------------
 
 
@@ -214,7 +214,7 @@ def scan_for_injected_instructions(text: str) -> InjectionScanResult:
 
 
 # ---------------------------------------------------------------------------
-# 3. REDACTION — STUB.
+# 3. REDACTION.
 # ---------------------------------------------------------------------------
 
 
@@ -309,7 +309,7 @@ def redact(text: str, private_sources: Iterable[str] = ()) -> RedactionResult:
 
 
 # ---------------------------------------------------------------------------
-# 4. ARITHMETIC VERIFICATION — STUB.
+# 4. ARITHMETIC VERIFICATION.
 # ---------------------------------------------------------------------------
 
 

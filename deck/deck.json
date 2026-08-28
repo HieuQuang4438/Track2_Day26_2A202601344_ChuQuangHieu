@@ -50,7 +50,7 @@
     "target": "mcp:slides",
     "op": "swap_replica",
     "value": {
-     "path_id": "e0614beb",
+     "path_id": "7a8d8046",
      "scope": "header"
     }
    },
@@ -64,7 +64,7 @@
    "kind": "attack",
    "ask": {
     "type": "current_version_of",
-    "path_id": "053195a5",
+    "path_id": "0e11ae43",
     "require": [
      "fresher",
      "w_anchor",
@@ -80,7 +80,7 @@
     "target": "mcp:slides",
     "op": "swap_replica",
     "value": {
-     "path_id": "053195a5",
+     "path_id": "0e11ae43",
      "scope": "content"
     }
    },

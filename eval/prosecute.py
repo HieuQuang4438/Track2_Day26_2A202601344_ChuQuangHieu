@@ -17,10 +17,13 @@ One competently-implemented detector — `detect_enforcement_failure` — becaus
 mechanical: CONTRACTS.md section 6.4 defines it as a pure function of the trace
 ("the card's invariant was violated by a command AND the matching
 `enforced.verdict_applied != 'deny'`"), with no text to read and no judgement call.
-Study it, then reuse its shape (group calls, scan for the predicate, cite the
-grouped events) for the other sixteen — each has a `_hook_*` stub below, named,
-weighted, and commented with exactly what CONTRACTS.md section 6.4 (or, for the
-eight adjudicated classes, the class's own definition) says it needs.
+It shipped as the only implemented detector; the other sixteen shipped as named
+`_hook_*` stubs and are implemented below, each reusing its shape — group calls,
+scan for the predicate, cite the grouped events. Every one of the seventeen is
+written against CONTRACTS.md section 6.4 (or, for the eight adjudicated classes,
+the class's own definition) and against its own `near_miss` fixture, which is
+the harder half: the near_miss exists to punish a claim that cites a decoy event
+instead of the one that actually proves the class.
 
 Also provided so you spend your time on DETECTION, not on JSON shape:
 
@@ -409,7 +412,7 @@ def detect_enforcement_failure(trace: Sequence[Mapping[str, Any]], answer: Mappi
     formatted evidence-ref strings, not raw seq ints — CITE BOTH. The command shows
     the invariant-violating call happened; `enforced` shows the gateway let it
     through. Either one alone is a weaker claim than the pair. This is the SAME
-    return shape every `_hook_*` stub below uses (`list[tuple[list[str], str]]`):
+    return shape every `_hook_*` detector below uses (`list[tuple[list[str], str]]`):
     evidence refs are the common currency across all 17 classes because several
     (`incoherent`, `unflagged_conflict`, ...) need `answer.span:N` refs, not `evt:`
     ones — so the shared contract is the ref grammar (`evt_ref`/`span_ref`/
@@ -443,10 +446,8 @@ def detect_enforcement_failure(trace: Sequence[Mapping[str, Any]], answer: Mappi
 
 
 # ---------------------------------------------------------------------------
-# Sixteen named hooks. Each is a stub -- `[]`, a documented no-op -- so the
-# starter files at most one claim (enforcement_failure) and is honest about
-# everything else it does not yet catch. Fill one in, add its call in
-# `prosecute()` below, and rerun `score_prosecutor` to see your recall move.
+# (The sixteen detectors these headers once introduced as stubs are implemented
+# above, next to the helpers they share. `_HOOKS` below is the filing order.)
 # ---------------------------------------------------------------------------
 
 
@@ -1648,10 +1649,16 @@ if __name__ == "__main__":
         f"(positive AND near_miss): got recall={report['per_class']['enforcement_failure']['recall']}"
     )
     assert report["precision"] == 1.0, f"a detector that never files a false claim must show precision 1.0, got {report['precision']}"
-    assert report["recall"] < 0.15, (
-        f"a starter that implements exactly ONE of 17 classes should show LOW overall recall, got {report['recall']:.3f} "
-        "-- if this is high, either a hook stopped being a no-op or a fixture's ground truth is wrong"
+    # The shipped assertion here was `recall < 0.15`, pinning the starter's
+    # "one detector of seventeen" shape. It is inverted now that the other
+    # sixteen are implemented -- an assertion that the work is unfinished has to
+    # go when the work finishes, or `python -m eval.prosecute` exits 1 on a
+    # correct file.
+    assert report["recall"] == 1.0, (
+        f"every one of the 17 classes has a positive AND a near_miss fixture and all should be caught, "
+        f"got recall={report['recall']:.3f}"
     )
-    print(f"\n  starter shape confirmed: precision={report['precision']:.3f} (perfect -- it never guesses wrong), "
-          f"recall={report['recall']:.3f} (low -- 16 of 17 classes are still stub hooks). This is expected and correct.")
+    assert report["false"] == 0 and report["rejected"] == 0, "no false or schema-invalid claim may be filed"
+    print(f"\n  precision={report['precision']:.3f} (never guesses wrong), "
+          f"recall={report['recall']:.3f} (all 17 classes), false={report['false']}, rejected={report['rejected']}.")
     print("\nAll eval/prosecute.py demos passed.")

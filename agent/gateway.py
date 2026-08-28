@@ -58,18 +58,29 @@ credit penalty PLUS an `integrity` event that hands the prosecutor a free
 agent/README.md's own table. Getting this file to just plainly return valid
 `Decision` values, every time, is worth more than getting it clever.
 
-THE STARTER'S SHAPE (read this before you start editing `decide()`)
+THE SHAPE OF `decide()` (read this before you start editing it)
 ----------------------------------------------------------------------------
-This starter FORWARDS ALMOST EVERYTHING AND DENIES NOTHING. That is not a
-placeholder oversight — it is the honest zero-defence baseline you are
-meant to beat: `bots/rookie` in the kit's own ladder does exactly the same
-thing, and RULES.md's own words are "if you cannot beat Rookie you have a
-bug, not a strategy." `decide()` below is structured as four named jobs —
-ROUTE, ADMIT, AUTHORIZE, BUDGET — each with a one-line TODO naming what a
-real implementation checks and why. None of the four currently rejects,
-rewrites, or reroutes anything; they are seams, not solutions. Fill them in
-using `agent/strategy.py` (routing/budget policy) and `agent/guardrails.py`
-(the safety checks) — both already import cleanly from here.
+This file shipped forwarding almost everything and denying nothing — the
+honest zero-defence baseline, the same thing `bots/rookie` does. `decide()`
+is still structured as the same four named jobs it shipped with, and all
+four now decide something:
+
+    JOB 3  AUTHORIZE  six identity checks, three of them on EVERY command
+    JOB 2  ADMIT      six doomed shapes, refused for free
+    JOB 1  ROUTE      replica on the header; deprecated tool -> successor
+    JOB 4  BUDGET     never denies for cost; rewrites the mask instead
+
+They run in that order, not in numeric order, and the swap is the point:
+AUTHORIZE runs FIRST because a command stopped at admission never reaches
+the authority check behind it, which is exactly what makes a correct
+gateway and a confused one produce identical traces (`ladder.py`'s own
+module docstring found this from the other side).
+
+The policy the jobs apply lives in `agent/strategy.py` (budget pacer,
+result cache, replica choice, successor table) and `agent/guardrails.py`
+(the injection scanner JOB 2 consults). Both are imported, not inlined, so
+the cost arithmetic and the definition of "this looks like an injection"
+each exist in exactly one place.
 
 ONE THING WORTH INTERNALISING BEFORE YOU WRITE YOUR FIRST REAL CHECK:
 `verdict="deny"` costs the CALLER (your own team) **zero credits** —
@@ -391,20 +402,26 @@ class Gateway:
     rounds. See the module docstring for the trusted-envelope diagram and
     why there is no `execute()` to call instead.
 
-    Instance attributes below are this starter's ENTIRE per-duel memory —
-    all currently unused by `decide()`'s naive body, but declared here
-    (rather than invented ad hoc later) so the four TODO jobs below have
-    somewhere obvious to keep state once you implement them. `agent/
-    strategy.py` has working building blocks for exactly this (a budget
-    pacer, a result cache, a replica-choice heuristic) — this starter does
-    not wire them in for you; that wiring is the assignment.
+    Instance attributes below are this gateway's ENTIRE per-duel memory. Note
+    what is NOT in it: no `GatewayContext` field is ever cached here. The
+    context is a LIVE VIEW the arena updates as the duel runs (CONTRACTS.md
+    4.2), so `ctx.credits`, `ctx.round` and `ctx.leases` are read fresh on
+    every `decide()` call; only state the arena does not keep for us —
+    admitted cards, etags, spent idempotency keys, measured drift, failed
+    call signatures — lives on the instance.
+
+    Four of those are filled from OUTSIDE `decide()`, through `note_card`,
+    `note_provenance`, `note_drift` and `note_failure`. That is the trusted
+    envelope working as designed rather than an awkward API: `decide()`
+    cannot go and read a registry, so what the arena learned has to come back
+    through a door the arena opens.
     """
 
     def __init__(self, ctx: GatewayContext) -> None:
         self.ctx = ctx
         self._telemetry = Telemetry(ctx)
 
-        # --- per-duel memory, unused by the naive starter below ---------
+        # --- per-duel memory ---------------------------------------------
         # A cache of anchor -> body-ish data you have already paid for this
         # duel (agent/strategy.py's ResultCache is a ready-made version of
         # this). Populating it needs the *result* of a call, which decide()
@@ -464,8 +481,8 @@ class Gateway:
         check" against something external looks. Everything you need to
         decide is already sitting in `cmd` and `self.ctx`.
 
-        The four jobs below are named, ordered, and each one now actually
-        decides something. The whole body runs inside one `try` because
+        The four jobs below are named, ordered, and each one decides
+        something. The whole body runs inside one `try` because
         CONTRACTS.md 4.1 charges a RAISE exactly like a malformed Decision —
         2 credits, the command denied, and a free `enforcement_failure`
         handed to the prosecutor. A deny we chose costs 0; a deny we crashed
