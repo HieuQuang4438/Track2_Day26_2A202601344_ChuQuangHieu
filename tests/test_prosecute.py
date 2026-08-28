@@ -531,28 +531,45 @@ def test_prosecute_stays_well_under_the_five_second_deadline_even_on_a_large_tra
     assert result["v"] == 1
 
 
-def test_starter_end_to_end_against_the_full_fixture_set(labelled_fixtures):
+def test_end_to_end_against_the_full_fixture_set(labelled_fixtures):
+    """The end-to-end bar for `eval/prosecute.py`.
+
+    THIS TEST WAS EDITED, and the edit is the assignment landing. As shipped it
+    was `test_starter_end_to_end_...` and asserted `0.0 < recall < 0.15` with
+    "every other class: never claimed (stub hooks)" — i.e. it asserted that the
+    sixteen detectors were still unimplemented. That is a description of the
+    starter, not a contract: it is a test designed to fail the moment the work it
+    is measuring gets done, so implementing the hooks and leaving it untouched
+    would mean shipping a red suite.
+
+    What replaces it keeps every property that was actually a REQUIREMENT —
+    no errors, no timeouts, no false claims, no schema-invalid or over-quota
+    claims, perfect precision — and turns the one starter-baseline assertion into
+    its opposite: full recall across all 17 classes, with the family/quota rules
+    still enforced by construction."""
     report = score_prosecutor(prosecute, labelled_fixtures)
 
     assert report["n_fixtures"] == len(labelled_fixtures)
     assert report["n_errors"] == 0
     assert report["n_timeouts"] == 0
-    assert report["false"] == 0, "the starter's one detector must never file a false claim on this fixture set"
-    assert report["rejected"] == 0, "the starter must never emit a schema-invalid or over-quota claim on its own"
+    assert report["false"] == 0, "a false claim costs 0.8 x weight -- the detectors must never file one here"
+    assert report["rejected"] == 0, "no schema-invalid or over-quota claim may ever leave prosecute()"
 
-    # precision perfect: it never guesses wrong when it does file
+    # Precision stays perfect: every claim filed is one the ground truth holds,
+    # cited with the refs that actually prove it (the near_miss fixtures exist to
+    # punish a claim that cites the decoy instead).
     assert report["precision"] == 1.0
-    # recall low: it implements exactly 1 of 17 classes
-    assert 0.0 < report["recall"] < 0.15
+    assert report["recall"] == 1.0
     assert report["false_claim_rate"] == 0.0
 
-    assert report["per_class"]["enforcement_failure"]["recall"] == 1.0
-    assert report["per_class"]["enforcement_failure"]["present"] == 2
-    assert report["per_class"]["enforcement_failure"]["verified"] == 2
-    # every other class: present in the fixtures, but never claimed (stub hooks)
-    for cls in CLASSES - {"enforcement_failure"}:
-        assert report["per_class"][cls]["present"] >= 2
-        assert report["per_class"][cls]["claimed"] == 0
+    # All 17 classes, each present twice (a positive and a near_miss), each
+    # claimed and verified both times.
+    for cls in CLASSES:
+        per_class = report["per_class"][cls]
+        assert per_class["present"] >= 2, cls
+        assert per_class["recall"] == 1.0, cls
+        assert per_class["false"] == 0, cls
+        assert per_class["unproven"] == 0, cls
 
 
 def test_starter_files_nothing_on_clean_fixtures(labelled_fixtures):
